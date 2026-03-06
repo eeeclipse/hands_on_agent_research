@@ -1,91 +1,178 @@
-# 📚 RecSys Research Agent
+# 📚 PhD Research Digest Agent
 
-추천 시스템(RecSys) 관련 최신 논문(arXiv)과 기술 블로그를 자동 수집·요약하고,
-팀 연구 주제와의 관련성을 평가하여 **주간 뉴스레터를 자동 생성**하는 Agent입니다.
+**Geometric Deep Learning · Topological Data Analysis · Topological Signal Processing**
+
+arXiv 최신 논문과 연구 블로그를 매일 자동 수집·요약하고,
+개인 연구 주제와의 시맨틱 유사도를 기반으로 필터링하여
+**Discord로 일일 뉴스레터를 자동 발송**하는 Research Agent입니다.
+
+---
 
 ## 아키텍처
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                     RecSys Research Agent                        │
-│                                                                   │
-│  ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐  │
-│  │  Collect │ →  │   Rank   │ →  │Summarize │ →  │Generate  │  │
-│  │          │    │          │    │          │    │          │  │
-│  │ arXiv    │    │sentence- │    │ Claude   │    │ Jinja2   │  │
-│  │ RSS Feed │    │transforme│    │ tool_use │    │ Template │  │
-│  │          │    │ + FAISS  │    │          │    │          │  │
-│  └──────────┘    └──────────┘    └──────────┘    └──────────┘  │
-│                                                                   │
-│  Step 1          Step 2          Step 3          Step 4          │
-│  수집            필터링·랭킹     LLM 요약         뉴스레터 생성   │
-└─────────────────────────────────────────────────────────────────┘
+                        GitHub Actions (매일 09:00 KST)
+                                     │
+          ┌──────────┐   ┌──────────┐│┌──────────┐   ┌──────────┐
+          │ Collect  │ → │  Rank    │││ Summarize│ → │ Generate │
+          │          │   │          │││          │   │          │
+          │ arXiv    │   │sentence- │││ Claude   │   │ Jinja2   │
+          │ RSS Feed │   │transform │││ tool_use │   │ Markdown │
+          └──────────┘   └──────────┘│└──────────┘   └──────────┘
+               │               │     │      │               │
+            수집            필터링·랭킹   LLM 요약      뉴스레터 생성
+                                     │               │
+                              Git commit & push   Discord Embed
 ```
 
-### 핵심 기술 스택
+### 기술 스택
 
 | 컴포넌트 | 기술 | 역할 |
-|----------|------|------|
-| 수집 | `feedparser`, `requests`, `BeautifulSoup` | arXiv API + RSS 파싱 |
-| 랭킹 | `sentence-transformers` (all-MiniLM-L6-v2) | 시맨틱 유사도 계산 |
-| 요약 | `anthropic` (Claude, tool_use) | 구조화된 LLM 요약 |
+|---|---|---|
+| 수집 | `feedparser`, `requests`, `BeautifulSoup` | arXiv Atom API + RSS 파싱 |
+| 랭킹 | `sentence-transformers` (all-MiniLM-L6-v2) | 연구 주제 시맨틱 유사도 |
+| 요약 | `anthropic` Claude (`tool_use`) | 구조화된 JSON 요약 강제 |
 | 출력 | `jinja2`, `rich` | Markdown 렌더링 + CLI UI |
+| 자동화 | GitHub Actions | 일별 스케줄 실행 + 알림 |
+| 알림 | Discord Webhook | Embed 카드 형식 전송 |
 
-## 설치
+---
 
-```bash
-# 의존성 설치
-pip install anthropic feedparser sentence-transformers faiss-cpu \
-            scikit-learn python-dotenv rich jinja2 requests beautifulsoup4
+## 연구 주제 (필터링 기준)
 
-# 환경 변수 설정
-cp .env.example .env
-# .env 파일에 ANTHROPIC_API_KEY 입력
-```
+`config.py`의 `TEAM_RESEARCH_TOPICS`가 시맨틱 유사도 계산의 기준 벡터로 사용됩니다.
 
-## 사용법
+### Geometric Deep Learning (GDL)
+- Equivariant neural networks with symmetry group representations
+- SE(3) / E(3) equivariant networks for 3D geometric data
+- Message passing neural networks on graphs and manifolds
+- Gauge equivariant convolutional networks on manifolds
 
-```bash
-# 전체 파이프라인 실행 (arXiv + 블로그 수집 → 랭킹 → LLM 요약 → 뉴스레터 생성)
-python agent.py
+### Topological Data Analysis (TDA)
+- Persistent homology and persistence diagrams for data analysis
+- Simplicial complexes and cell complexes in machine learning
+- Sheaf theory and sheaf neural networks on graphs
+- Mapper algorithm and topological descriptors
 
-# LLM 호출 없이 수집+랭킹만 확인 (API 키 불필요)
-python agent.py --dry-run
+### Topological Signal Processing (TSP)
+- Hodge Laplacian and Hodge decomposition for signal processing
+- Signal processing on simplicial complexes and higher-order networks
+- Simplicial neural networks for flow and edge signal learning
+- Cell complex / combinatorial complex neural networks
 
-# 최근 14일 논문, 관련성 임계값 0.4로 조정
-python agent.py --days 14 --threshold 0.4
+### Cross-cutting
+- Topological deep learning unifying GDL and TDA
+- Diffusion processes on Riemannian manifolds
+- Geometric and topological methods for graph representation learning
 
-# 출력 디렉토리 지정
-python agent.py --output-dir ./reports
-```
+---
 
 ## 파일 구조
 
 ```
 hands_on_agent_research/
-├── agent.py                    # 메인 오케스트레이션 (파이프라인 진입점)
-├── config.py                   # 팀 연구 주제, 검색 쿼리, 블로그 피드 설정
-├── models.py                   # Paper, BlogPost, Newsletter 데이터 모델
-├── ranker.py                   # 시맨틱 유사도 기반 필터링 & 랭킹
-├── summarizer.py               # Claude tool_use 기반 LLM 요약
-├── newsletter.py               # Jinja2 기반 Markdown 뉴스레터 렌더링
+├── agent.py                         # 메인 오케스트레이터 (4-step 파이프라인)
+├── config.py                        # 연구 주제·쿼리·피드 설정
+├── models.py                        # Paper, BlogPost, Newsletter 데이터클래스
+├── ranker.py                        # 시맨틱 유사도 필터링 & 랭킹
+├── summarizer.py                    # Claude tool_use 기반 LLM 요약
+├── newsletter.py                    # Jinja2 Markdown 뉴스레터 렌더러
 ├── collectors/
-│   ├── arxiv_collector.py      # arXiv API 논문 수집
-│   └── blog_collector.py       # RSS 피드 블로그 수집
-├── output/                     # 생성된 뉴스레터 저장 (자동 생성)
-│   └── newsletter_YYYYMMDD.md
-└── .env                        # API 키 (git 제외)
+│   ├── arxiv_collector.py           # arXiv Atom API 수집
+│   └── blog_collector.py            # RSS 피드 + 크롤링
+├── .github/
+│   ├── workflows/
+│   │   └── daily_digest.yml         # 일별 자동 실행 워크플로우
+│   └── scripts/
+│       └── notify_discord.py        # Discord Embed 알림 스크립트
+├── output/                          # 생성된 뉴스레터 (gitignore 제외)
+│   └── phd_digest_YYYYMMDD.md
+├── requirements.txt
+├── run.sh                           # 로컬 실행 편의 스크립트
+└── .env.example                     # 환경 변수 템플릿
 ```
+
+---
+
+## 로컬 설치 및 실행
+
+```bash
+# 1. 가상환경 생성 (numpy<2 호환 필요)
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+
+# 2. 환경 변수 설정
+cp .env.example .env
+# .env 에 ANTHROPIC_API_KEY 입력
+
+# 3-a. 전체 파이프라인 실행
+./run.sh
+
+# 3-b. LLM 호출 없이 수집·랭킹만 테스트 (API 키 불필요)
+./run.sh --dry-run
+
+# 3-c. 옵션 조정
+./run.sh --days 14 --threshold 0.4 --output-dir ./reports
+```
+
+---
+
+## GitHub Actions 자동화
+
+### Secrets 설정
+
+`Settings → Secrets and variables → Actions`에서 추가:
+
+| Secret | 설명 |
+|---|---|
+| `ANTHROPIC_API_KEY` | Anthropic API 키 |
+| `DISCORD_WEBHOOK_URL` | Discord 채널 웹훅 URL |
+
+> Discord 웹훅: 채널 설정 → 연동 → 웹훅 → 새 웹훅 → URL 복사
+
+### 실행 스케줄
+
+| 방식 | 조건 |
+|---|---|
+| 자동 | 매일 **09:00 KST** (cron: `0 0 * * *`) |
+| 수동 | Actions 탭 → `Daily PhD Research Digest` → `Run workflow` |
+
+수동 실행 시 `days`(수집 기간)와 `threshold`(관련성 임계값)를 UI에서 직접 조정할 수 있습니다.
+
+### 워크플로우 단계
+
+```
+1. Checkout + Python 3.11 설치
+2. pip install 의존성
+3. agent.py 실행 → phd_digest_YYYYMMDD.md 생성
+4. output/ 변경사항 자동 커밋 & push
+5. Discord Embed 전송 (Top Papers + Trends + 뉴스레터 링크)
+   └─ 실패 시: Actions 로그 링크 포함 오류 알림 전송
+```
+
+---
 
 ## 커스터마이징
 
-### 팀 연구 주제 변경 (`config.py`)
+### 연구 주제 변경 (`config.py`)
 
 ```python
 TEAM_RESEARCH_TOPICS = [
-    "Semantic ID representation for recommendation systems",
-    "Causal inference for debiased recommendation",
-    # 팀 주제에 맞게 추가/수정
+    "Equivariant neural networks with symmetry group representations",
+    # 본인 연구 주제로 교체 — 임베딩 기준 벡터로 사용됨
+]
+```
+
+### arXiv 검색 쿼리 추가 (`config.py`)
+
+```python
+ARXIV_QUERIES = [
+    "persistent homology topological data analysis machine learning",
+    "your custom query here",
+]
+
+ARXIV_CATEGORIES = [
+    "cs.LG", "math.AT", "eess.SP",  # 필요 카테고리 추가
 ]
 ```
 
@@ -94,29 +181,22 @@ TEAM_RESEARCH_TOPICS = [
 ```python
 BLOG_FEEDS = [
     {
-        "name": "Your Company Blog",
-        "url": "https://your-blog.com/feed.rss",
-        "tags": ["recommendation", "ML"],
+        "name": "Your Blog",
+        "url":  "https://your-blog.com/feed.rss",
+        "tags": ["topology", "geometric"],
     },
-    # ...
 ]
 ```
 
-### arXiv 검색 쿼리 조정 (`config.py`)
-
-```python
-ARXIV_QUERIES = [
-    "recommendation system LLM large language model",
-    "your custom query here",
-]
-```
+---
 
 ## 학습 포인트
 
-이 프로젝트는 다음 개념의 실습 예제입니다:
-
-1. **Agent 오케스트레이션** — 순차적 파이프라인 패턴 (collect → rank → summarize → generate)
-2. **LLM Tool Use** — Anthropic tool_use를 활용한 구조화된 출력 (JSON schema 강제)
-3. **RAG 패턴** — 팀 연구 주제를 쿼리로 사용하는 시맨틱 유사도 필터링
-4. **임베딩 기반 검색** — sentence-transformers + 코사인 유사도
-5. **외부 API 통합** — arXiv Atom feed, RSS 피드 파싱
+| # | 개념 | 구현 위치 |
+|---|---|---|
+| 1 | **Agent 오케스트레이션** — 순차 파이프라인 패턴 | `agent.py` |
+| 2 | **LLM Tool Use** — JSON schema 강제 구조화 출력 | `summarizer.py` |
+| 3 | **시맨틱 유사도 필터링** — 연구 주제 벡터 vs 논문 임베딩 | `ranker.py` |
+| 4 | **외부 API 통합** — arXiv Atom feed, RSS 파싱 | `collectors/` |
+| 5 | **GitHub Actions 자동화** — 스케줄·시크릿·아티팩트 커밋 | `.github/workflows/` |
+| 6 | **Discord Webhook** — Embed 카드 포맷 알림 | `.github/scripts/` |
