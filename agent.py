@@ -139,30 +139,49 @@ def print_summary_table(top_papers, top_blogs):
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="RecSys Research Agent — 주간 뉴스레터 자동 생성"
+        description="Research Digest Agent — 프로필 기반 주간 뉴스레터 자동 생성"
+    )
+    parser.add_argument(
+        "--profile", type=str, default="phd",
+        choices=["phd", "industry"],
+        help="실행할 프로필 (기본값: phd)",
     )
     parser.add_argument(
         "--dry-run", action="store_true",
         help="LLM 호출 없이 수집+랭킹만 실행 (API 키 불필요)",
     )
     parser.add_argument(
-        "--days", type=int, default=config.ARXIV_DAYS_BACK,
-        help=f"수집 기간 (일, 기본값: {config.ARXIV_DAYS_BACK})",
+        "--days", type=int, default=None,
+        help="수집 기간 (일, 기본값: 프로필 설정값)",
     )
     parser.add_argument(
-        "--threshold", type=float, default=config.RELEVANCE_THRESHOLD,
-        help=f"관련성 점수 임계값 (기본값: {config.RELEVANCE_THRESHOLD})",
+        "--threshold", type=float, default=None,
+        help="관련성 점수 임계값 (기본값: 프로필 설정값)",
     )
     parser.add_argument(
-        "--output-dir", type=str, default=config.OUTPUT_DIR,
-        help=f"출력 디렉토리 (기본값: {config.OUTPUT_DIR})",
+        "--output-dir", type=str, default=None,
+        help="출력 디렉토리 (기본값: 프로필 설정값)",
     )
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
-    config.OUTPUT_DIR = args.output_dir
+
+    # 프로필 로드
+    config.load(args.profile)
+
+    # CLI 인자가 있으면 프로필 설정 오버라이드
+    if args.output_dir is not None:
+        config.OUTPUT_DIR = args.output_dir
+    if args.days is not None:
+        config.ARXIV_DAYS_BACK = args.days
+        config.BLOG_DAYS_BACK = args.days
+    if args.threshold is not None:
+        config.RELEVANCE_THRESHOLD = args.threshold
+
+    days = args.days or config.ARXIV_DAYS_BACK
+    threshold = args.threshold or config.RELEVANCE_THRESHOLD
 
     # API 키 체크 (dry-run이 아닌 경우)
     if not args.dry_run and not os.environ.get("ANTHROPIC_API_KEY"):
@@ -173,9 +192,10 @@ def main():
         sys.exit(1)
 
     console.print(Panel(
-        "[bold]RecSys Research Agent[/]\n"
-        f"기간: 최근 {args.days}일 | "
-        f"임계값: {args.threshold} | "
+        f"[bold]{config.PROFILE_NAME}[/]\n"
+        f"{config.PROFILE_DESCRIPTION}\n"
+        f"기간: 최근 {days}일 | "
+        f"임계값: {threshold} | "
         f"{'[yellow]dry-run 모드[/]' if args.dry_run else '[green]전체 파이프라인[/]'}",
         title="🤖 Agent 시작",
         border_style="blue",
@@ -184,24 +204,24 @@ def main():
     start_time = time.time()
 
     # ── 파이프라인 실행 ──────────────────────────────────────────────────────
-    papers, blogs = step_collect(args.days)
+    papers, blogs = step_collect(days)
 
     if not papers and not blogs:
         console.print("[yellow]수집된 데이터가 없습니다. 종료합니다.[/]")
         sys.exit(0)
 
-    top_papers, top_blogs = step_rank(papers, blogs, args.threshold)
+    top_papers, top_blogs = step_rank(papers, blogs, threshold)
 
     if not top_papers and not top_blogs:
         console.print(
-            f"[yellow]임계값({args.threshold}) 이상의 관련 항목이 없습니다. "
+            f"[yellow]임계값({threshold}) 이상의 관련 항목이 없습니다. "
             f"--threshold 값을 낮춰보세요.[/]"
         )
         sys.exit(0)
 
     top_papers, top_blogs, trends = step_summarize(top_papers, top_blogs, args.dry_run)
 
-    path, _ = step_generate(top_papers, top_blogs, trends, args.days)
+    path, _ = step_generate(top_papers, top_blogs, trends, days)
 
     # ── 결과 요약 ────────────────────────────────────────────────────────────
     print_summary_table(top_papers, top_blogs)

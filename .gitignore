@@ -9,6 +9,7 @@
 __pycache__/
 *.py[cod]
 *.pyo
+.python-version
 
 # 생성된 뉴스레터 출력물
 output/
