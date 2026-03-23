@@ -83,7 +83,8 @@ hands_on_agent_research/
 ├── output/                          # 생성된 뉴스레터
 │   ├── phd_digest_YYYYMMDD.md
 │   └── industry_digest_YYYYMMDD.md
-├── requirements.txt
+├── pyproject.toml                   # uv 프로젝트 설정 & 의존성
+├── uv.lock                          # uv 락파일
 ├── run.sh                           # 로컬 실행 편의 스크립트
 └── .env.example                     # 환경 변수 템플릿
 ```
@@ -93,23 +94,22 @@ hands_on_agent_research/
 ## 로컬 설치 및 실행
 
 ```bash
-# 1. 가상환경 생성
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
-
-# 2. 환경 변수 설정
+# 1. 환경 변수 설정
 cp .env.example .env
 # .env 에 ANTHROPIC_API_KEY 입력
 
-# 3. 프로필별 실행
-./run.sh --profile phd              # PhD Research
-./run.sh --profile industry         # Industry Practice
+# 2. 프로필별 실행 (uv가 자동으로 의존성 설치)
+uv run agent.py --profile phd              # PhD Research
+uv run agent.py --profile industry         # Industry Practice
 
-# 4. dry-run (LLM 호출 없이 수집·랭킹만 테스트)
-./run.sh --profile industry --dry-run
+# 3. dry-run (LLM 호출 없이 수집·랭킹만 테스트)
+uv run agent.py --profile industry --dry-run
 
-# 5. 옵션 조정
-./run.sh --profile phd --days 14 --threshold 0.4
+# 4. 옵션 조정
+uv run agent.py --profile phd --days 14 --threshold 0.4
+
+# 또는 run.sh 사용
+./run.sh --profile phd
 ```
 
 ---

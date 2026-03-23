@@ -25,17 +25,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: 'pip'
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
 
-      - name: Install dependencies
-        run: |
-          pip install --upgrade pip
-          pip install "numpy<2" anthropic feedparser sentence-transformers faiss-cpu \
-                      scikit-learn python-dotenv rich jinja2 requests beautifulsoup4
+      - name: Set up Python 3.11
+        run: uv python install 3.11
 
       - name: Run Industry Practice Agent
         env:
@@ -43,7 +37,7 @@ jobs:
         run: |
           DAYS="${{ github.event.inputs.days || '7' }}"
           THRESHOLD="${{ github.event.inputs.threshold || '0.35' }}"
-          python agent.py --profile industry --days "$DAYS" --threshold "$THRESHOLD"
+          uv run agent.py --profile industry --days "$DAYS" --threshold "$THRESHOLD"
 
       - name: Get newsletter path
         id: newsletter
@@ -69,7 +63,7 @@ jobs:
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           NEWSLETTER_PATH:     ${{ steps.newsletter.outputs.path }}
-        run: python .github/scripts/notify_discord.py
+        run: uv run .github/scripts/notify_discord.py
 
       - name: Notify Discord on failure
         if: failure()
