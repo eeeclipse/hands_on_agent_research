@@ -11,9 +11,6 @@ __pycache__/
 *.pyo
 .python-version
 
-# 생성된 뉴스레터 출력물
-output/
-
 # IDE
 .idea/
 .vscode/
