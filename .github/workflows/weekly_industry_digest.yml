@@ -42,11 +42,18 @@ jobs:
       - name: Get newsletter path
         id: newsletter
         run: |
-          FILE=$(ls -t output/industry_digest_*.md | head -1)
-          echo "path=$FILE" >> "$GITHUB_OUTPUT"
-          echo "name=$(basename $FILE)" >> "$GITHUB_OUTPUT"
+          FILE=$(ls -t output/industry_digest_*.md 2>/dev/null | head -1 || true)
+          if [ -n "$FILE" ]; then
+            echo "path=$FILE" >> "$GITHUB_OUTPUT"
+            echo "name=$(basename "$FILE")" >> "$GITHUB_OUTPUT"
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "⚠️ 다이제스트 파일이 생성되지 않았습니다 (임계값 이상 항목 없음)"
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Commit and push newsletter
+        if: steps.newsletter.outputs.found == 'true'
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -59,7 +66,8 @@ jobs:
           fi
 
       - name: Notify Discord
-        if: success()
+        if: steps.newsletter.outputs.found == 'true'
+        continue-on-error: true
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           NEWSLETTER_PATH:     ${{ steps.newsletter.outputs.path }}
@@ -67,13 +75,17 @@ jobs:
 
       - name: Notify Discord on failure
         if: failure()
+        continue-on-error: true
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: |
-          python - "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" <<'EOF'
-          import json, os, sys, urllib.request
+          python3 - "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" <<'PYEOF'
+          import json, os, sys, urllib.request, urllib.error
           run_url = sys.argv[1]
-          url = os.environ["DISCORD_WEBHOOK_URL"]
+          url = os.environ.get("DISCORD_WEBHOOK_URL", "")
+          if not url:
+              print("DISCORD_WEBHOOK_URL not set, skipping notification")
+              sys.exit(0)
           payload = {
               "username": "Research Digest Bot",
               "embeds": [{
@@ -88,5 +100,8 @@ jobs:
           body = json.dumps(payload).encode()
           req = urllib.request.Request(url, data=body,
                 headers={"Content-Type": "application/json"}, method="POST")
-          urllib.request.urlopen(req, timeout=10)
-          EOF
+          try:
+              urllib.request.urlopen(req, timeout=10)
+          except urllib.error.HTTPError as e:
+              print(f"Discord 알림 전송 실패: HTTP {e.code}", file=sys.stderr)
+          PYEOF
