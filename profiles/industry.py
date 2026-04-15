@@ -152,7 +152,7 @@ BLOG_KEYWORDS = [
 # ── 임베딩 & 시맨틱 유사도 ────────────────────────────────────────────────────────
 EMBEDDING_MODEL = "all-MiniLM-L6-v2"
 RELEVANCE_THRESHOLD = 0.35
-TOP_N_PAPERS = 10
+TOP_N_PAPERS = 20
 TOP_N_BLOGS = 5
 
 # ── LLM 설정 ──────────────────────────────────────────────────────────────────────
