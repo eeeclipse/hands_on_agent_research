@@ -114,6 +114,14 @@ uv run agent.py --profile phd --days 14 --threshold 0.4
 
 ---
 
+## 테스트
+
+```bash
+uv run --group dev pytest -q
+```
+
+---
+
 ## GitHub Actions 자동화
 
 ### Secrets 설정
@@ -133,6 +141,14 @@ uv run agent.py --profile phd --days 14 --threshold 0.4
 | Industry Practice | 매주 **월요일 09:00 KST** | Actions → `Weekly Industry Practice Digest` → Run workflow |
 
 수동 실행 시 `days`(수집 기간)와 `threshold`(관련성 임계값)를 UI에서 직접 조정할 수 있습니다.
+
+---
+
+### 수집 품질 리포트
+
+각 실행은 `output/quality_reports/{profile}_quality_YYYYMMDD.md`를 생성합니다.
+리포트에는 arXiv 쿼리별 수집 수, 중복 제거 수, 기간 필터 탈락 수,
+블로그 피드별 키워드 필터 탈락 수, 본문 크롤링 성공 수, 최종 선정 수가 포함됩니다.
 
 ---
 

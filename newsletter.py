@@ -42,7 +42,7 @@ _NEWSLETTER_TEMPLATE = """\
 | **발행일** | {{ paper.published_str }} |
 | **카테고리** | {{ paper.categories[:3] | join(', ') }} |
 | **관련성 점수** | {{ "%.3f" | format(paper.relevance_score) }} |
-| **arXiv** | [링크]({{ paper.url }}) \| [PDF]({{ paper.pdf_url }}) |
+| **arXiv** | [링크]({{ paper.url }}) \\| [PDF]({{ paper.pdf_url }}) |
 
 **요약:** {{ paper.summary }}
 
