@@ -14,6 +14,7 @@ from bs4 import BeautifulSoup
 from rich.console import Console
 
 from models import BlogPost
+from quality_report import SourceQualityStats
 import config
 
 console = Console()
@@ -64,7 +65,7 @@ def _fetch_full_text(url: str, max_chars: int = 3000) -> str:
         return ""
 
 
-def collect_blogs() -> List[BlogPost]:
+def collect_blogs(report=None) -> List[BlogPost]:
     """
     설정된 RSS 피드에서 최근 BLOG_DAYS_BACK 일 이내 포스트를 수집합니다.
     관련 키워드 사전 필터링 → 본문 일부 크롤링
@@ -75,9 +76,18 @@ def collect_blogs() -> List[BlogPost]:
     console.print(f"[bold cyan]📰 블로그 수집 시작[/] (최근 {config.BLOG_DAYS_BACK}일, {len(config.BLOG_FEEDS)}개 피드)")
 
     for feed_cfg in config.BLOG_FEEDS:
+        stats = SourceQualityStats(
+            source_type="blog",
+            name=feed_cfg["name"],
+            url=feed_cfg["url"],
+        )
+        if report is not None:
+            report.blog_sources.append(stats)
         try:
             feed = feedparser.parse(feed_cfg["url"])
+            stats.fetched_count = len(feed.entries)
         except Exception as e:
+            stats.failure = str(e)
             console.print(f"  [red]피드 파싱 실패:[/] {feed_cfg['name']} → {e}")
             continue
 
@@ -85,6 +95,7 @@ def collect_blogs() -> List[BlogPost]:
         for entry in feed.entries:
             published = _parse_date(entry)
             if published < cutoff:
+                stats.old_count += 1
                 continue
 
             title = getattr(entry, "title", "")
@@ -93,12 +104,16 @@ def collect_blogs() -> List[BlogPost]:
 
             # 키워드 사전 필터
             if not _is_relevant(title, summary):
+                stats.keyword_filtered_count += 1
                 continue
 
             # 본문 추가 크롤링 (짧은 요약만 있을 경우)
             content = ""
             if len(summary) < 300 and url:
+                stats.full_text_attempt_count += 1
                 content = _fetch_full_text(url)
+                if content:
+                    stats.full_text_success_count += 1
                 time.sleep(0.3)
 
             posts.append(BlogPost(
@@ -109,6 +124,7 @@ def collect_blogs() -> List[BlogPost]:
                 summary=BeautifulSoup(summary, "html.parser").get_text(strip=True)[:1000],
                 content=content,
             ))
+            stats.added_count += 1
             new_count += 1
 
         console.print(f"  [green]✓[/] [{feed_cfg['name']:25s}] → {new_count}편 수집")

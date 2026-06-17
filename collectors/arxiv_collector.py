@@ -13,6 +13,7 @@ import feedparser
 from rich.console import Console
 
 from models import Paper
+from quality_report import SourceQualityStats
 import config
 
 console = Console()
@@ -62,7 +63,7 @@ def _parse_entry(entry) -> Paper:
     )
 
 
-def collect_papers() -> List[Paper]:
+def collect_papers(report=None) -> List[Paper]:
     """
     설정된 모든 쿼리로 arXiv 논문 수집 후 중복 제거 및 날짜 필터링.
     Returns: 최근 ARXIV_DAYS_BACK 일 이내의 Paper 목록
@@ -75,9 +76,14 @@ def collect_papers() -> List[Paper]:
 
     for query in config.ARXIV_QUERIES:
         url = _build_arxiv_query(query, config.ARXIV_CATEGORIES)
+        stats = SourceQualityStats(source_type="arxiv", name=f"query: {query}", url=url)
+        if report is not None:
+            report.paper_sources.append(stats)
         try:
             feed = feedparser.parse(url)
+            stats.fetched_count = len(feed.entries)
         except Exception as e:
+            stats.failure = str(e)
             console.print(f"  [red]쿼리 실패:[/] {query[:50]}… → {e}")
             continue
 
@@ -85,11 +91,14 @@ def collect_papers() -> List[Paper]:
         for entry in feed.entries:
             paper = _parse_entry(entry)
             if paper.arxiv_id in seen_ids:
+                stats.duplicate_count += 1
                 continue
             if paper.published < cutoff:
+                stats.old_count += 1
                 continue
             seen_ids.add(paper.arxiv_id)
             papers.append(paper)
+            stats.added_count += 1
             new_count += 1
 
         console.print(f"  [green]✓[/] [{query[:45]:45s}] → {new_count}편 수집")
